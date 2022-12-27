@@ -1,5 +1,6 @@
 from PIL import Image
 import torch
+import torch.onnx
 import torch.backends.cudnn as cudnn
 import torch.utils.data
 import torch.nn.functional as F
@@ -108,7 +109,16 @@ def recognizer_predict(model, converter, test_loader, batch_max_length,\
             length_for_pred = torch.IntTensor([batch_max_length] * batch_size).to(device)
             text_for_pred = torch.LongTensor(batch_size, batch_max_length + 1).fill_(0).to(device)
 
-            preds = model(image, text_for_pred)
+            preds = model(image)
+            torch.onnx.export(
+              model,
+              image,
+              "easyocr_rec.onnx", input_names=['image'], output_names=['char_probs'],
+              dynamic_axes={
+                "image": { 3: "width" },
+                "char_probs": { 1: "index" }
+              }
+            )
 
             # Select max probabilty (greedy decoding) then decode index to character
             preds_size = torch.IntTensor([preds.size(1)] * batch_size)
